@@ -5,7 +5,7 @@ This script is designed to automate the process of generating new WireGuard clie
 ## Features
 
 - Auto-generate client configuration
-- Create `client.conf` files
+- Create `<client_name>.conf` files
 - Add client and delete client
 - List clients
 - Generate QR codes for easy client setup
