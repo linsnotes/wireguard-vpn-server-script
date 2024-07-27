@@ -6,7 +6,7 @@ SERVER_CONFIG="${WG_DIR}/wg0.conf"
 SERVER_PRIVATE_KEY=""
 SERVER_PUBLIC_KEY=""
 SERVER_IP="" # Change this to your server Domain name or DDNS address or server IP
-SERVER_PORT="51820" 
+SERVER_PORT="51820" # Change this to your WireGuard server port
 WG_INTERFACE="wg0"
 NET_INTERFACE="" # Change this to your network interface
 LOCAL_NETWORK="" # Change this to your local network
@@ -119,6 +119,9 @@ initialize_environment() {
     echo "User '$original_user' has been added to the '$group_name' group."
     fi
 
+    # Create wg0.conf if it doesn't exist
+    create_wg0_conf
+
     # Ensure necessary directories exist
     mkdir -p "${CLIENTS_DIR}"
     echo "Directory '${CLIENTS_DIR}' exists or has been created."
@@ -140,8 +143,6 @@ initialize_environment() {
         echo "qrencode is already installed."
     fi
 
-    # Create wg0.conf if it doesn't exist
-    create_wg0_conf
 }
 
 
