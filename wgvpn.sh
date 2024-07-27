@@ -5,11 +5,11 @@ CLIENTS_DIR="${WG_DIR}/clients"
 SERVER_CONFIG="${WG_DIR}/wg0.conf"
 SERVER_PRIVATE_KEY=""
 SERVER_PUBLIC_KEY=""
-SERVER_IP="" # Change this to your server Domain name or DDNS address or server IP
+SERVER_IP="asuscomm.com" # Change this to your server Domain name or DDNS address or server IP
 SERVER_PORT="51820" # Change this to your WireGuard server port
 WG_INTERFACE="wg0"
 NET_INTERFACE="" # Change this to your network interface
-LOCAL_NETWORK="" # Change this to your local network
+LOCAL_NETWORK="192.168.1.0/24" # Change this to your local network
 escaped_local_network=$(echo "${LOCAL_NETWORK}" | sed 's/[&/\]/\\&/g')
 CLIENT_IP=""
 
@@ -53,8 +53,8 @@ create_wg0_conf() {
 Address = 10.0.0.1/24
 ListenPort = ${SERVER_PORT}
 PrivateKey = ${SERVER_PRIVATE_KEY}
-PostUp = iptables -A INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT; iptables -A FORWARD -i wg0 -d ${LOCAL_NETWORK} -j REJECT; iptables -A FORWARD -i wg0 -o ${NET_INTERFACE} -j ACCEPT; iptables -A FORWARD -i ${NET_INTERFACE} -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -A POSTROUTING -o ${NET_INTERFACE} -j MASQUERADE
-PostDown = iptables -D INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT; iptables -D FORWARD -i wg0 -d ${LOCAL_NETWORK} -j REJECT; iptables -D FORWARD -i wg0 -o ${NET_INTERFACE} -j ACCEPT; iptables -D FORWARD -i ${NET_INTERFACE} -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -D POSTROUTING -o ${NET_INTERFACE} -j MASQUERADE
+PostUp = sysctl -w net.ipv4.ip_forward=1; iptables -A INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT; iptables -A FORWARD -i wg0 -d ${LOCAL_NETWORK} -j REJECT; iptables -A FORWARD -i wg0 -o ${NET_INTERFACE} -j ACCEPT; iptables -A FORWARD -i ${NET_INTERFACE} -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -A POSTROUTING -o ${NET_INTERFACE} -j MASQUERADE
+PostDown = sysctl -w net.ipv4.ip_forward=0; iptables -D INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT; iptables -D FORWARD -i wg0 -d ${LOCAL_NETWORK} -j REJECT; iptables -D FORWARD -i wg0 -o ${NET_INTERFACE} -j ACCEPT; iptables -D FORWARD -i ${NET_INTERFACE} -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -D POSTROUTING -o ${NET_INTERFACE} -j MASQUERADE
 EOL
         echo "Created ${SERVER_CONFIG}"
     else
