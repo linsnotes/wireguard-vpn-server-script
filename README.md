@@ -18,6 +18,29 @@ Before running the script, ensure you have completed the following steps:
 1. **Enable Port Forwarding:** Make sure port forwarding is enabled on your router for WireGuard port 51820.
 2. **Setup IPTables Default Policy:** It's recommended to set up an IPTables default policy to enhance security.
 
+## Download the script
+
+1. **Save the Script**
+
+   Save the script to a file, e.g., `configure-iptables.sh`.
+
+   ```bash
+   wget  https://raw.githubusercontent.com/linsnotes/wireguard-vpn-server-script/main/wgvpn.sh
+
+   ```
+
+2. **Make the Script Executable**
+
+   ```bash
+   chmod +x wgvpn.sh
+   ```
+
+3. **Run the Script**
+
+   ```bash
+   sudo ./wgvpn.sh
+   ```
+
 ## Usage
 
 ### 1. Generate a new client
