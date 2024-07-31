@@ -5,8 +5,8 @@ CLIENTS_DIR="${WG_DIR}/clients"
 SERVER_CONFIG="${WG_DIR}/wg0.conf"
 SERVER_PRIVATE_KEY=""
 SERVER_PUBLIC_KEY=""
-SERVER_IP="asuscomm.com" # Change this to your server Domain name or DDNS address or server IP
-SERVER_PORT="51820"
+SERVER_IP="" # Change this to your server Domain name or DDNS address or server IP
+SERVER_PORT="51820" # Default is 51820. You may change to another port.
 WG_INTERFACE="wg0"
 NET_INTERFACE="" # Change this to your network interface
 LOCAL_NETWORK="192.168.1.0/24" # Change this to your local network
@@ -42,6 +42,21 @@ create_wg0_conf() {
         echo "Server private and public keys generated."
     fi
 
+    # Check if SERVER_PUBLIC_KEY, SERVER_IP, SERVER_PORT, SERVER_CONFIG, and WG_INTERFACE are set
+    local missing_vars=()
+
+    [ -z "${SERVER_IP}" ] && missing_vars+=("SERVER_IP\n")
+    [ -z "${SERVER_PORT}" ] && missing_vars+=("SERVER_PORT\n")
+    [ -z "${WG_INTERFACE}" ] && missing_vars+=("WG_INTERFACE\n")
+    [ -z "${NET_INTERFACE}" ] && missing_vars+=("NET_INTERFACE\n")
+    [ -z "${LOCAL_NETWORK}" ] && missing_vars+=("LOCAL_NETWORK\n")
+
+    if [ ${#missing_vars[@]} -ne 0 ]; then
+        echo -e "Error: The following required variables are not set:\n${missing_vars[*]}"
+        echo "Please change or set the necessary variables in the script and then run it again."
+        exit 1
+    fi
+
     # Read the generated keys
     SERVER_PRIVATE_KEY=$(cat "${WG_DIR}/server-private.key")
     SERVER_PUBLIC_KEY=$(cat "${WG_DIR}/server-public.key")
@@ -60,36 +75,26 @@ EOL
     else
         echo "${SERVER_CONFIG} already exists."
     fi
-    # Bring up the WireGuard interface
-    sudo wg-quick up wg0
-
+    # Start WireGuard
+    wg-quick up wg0
 }
 
 initialize_environment() {
-    local group_name="vpnadmin"
-    # Check if SERVER_PUBLIC_KEY, SERVER_IP, SERVER_PORT, SERVER_CONFIG, and WG_INTERFACE are set
-    local missing_vars=()
-
-    [ -z "${SERVER_IP}" ] && missing_vars+=("SERVER_IP\n")
-    [ -z "${SERVER_PORT}" ] && missing_vars+=("SERVER_PORT\n")
-    [ -z "${WG_INTERFACE}" ] && missing_vars+=("WG_INTERFACE\n")
-    [ -z "${NET_INTERFACE}" ] && missing_vars+=("NET_INTERFACE\n")
-    [ -z "${LOCAL_NETWORK}" ] && missing_vars+=("LOCAL_NETWORK\n")
-
-    if [ ${#missing_vars[@]} -ne 0 ]; then
-        echo -e "Error: The following required variables are not set:\n${missing_vars[*]}"
-        echo "Please change or set the necessary variables in the script and then run it again."
-        exit 1
-    fi
-
     # Check if WireGuard is installed, if not, install it
     if ! command -v wg &> /dev/null; then
         echo "WireGuard is not installed. Installing..."
-        apt-get update
-        if apt-get install -y wireguard; then
-            echo "WireGuard has been installed."
+
+        # Update package list and check for success
+        if sudo apt-get update -y > /dev/null 2>&1; then
+        # Try installing WireGuard
+            if sudo apt-get install -y wireguard > /dev/null 2>&1; then
+                echo "WireGuard has been installed."
+            else
+                echo "Error installing WireGuard. Please check your package manager and try again."
+                exit 1
+            fi
         else
-            echo "Error installing WireGuard. Please check your package manager and try again."
+            echo "Error updating package list. Please check your internet connection or package sources."
             exit 1
         fi
     else
@@ -97,9 +102,16 @@ initialize_environment() {
     fi
 
     # Create vpnadmin group if it doesn't exist
+    local group_name="vpnadmin"
+
+    # Check if the group exists, and create it if it doesn't
     if ! getent group "$group_name" > /dev/null; then
-        groupadd "$group_name"
-        echo "Group '$group_name' has been created."
+        if sudo groupadd "$group_name"; then
+            echo "Group '$group_name' has been created."
+        else
+            echo "Failed to create group '$group_name'. Please check your permissions and try again."
+            exit 1
+        fi
     else
         echo "Group '$group_name' already exists."
     fi
@@ -113,14 +125,18 @@ initialize_environment() {
     echo "Unable to determine the original user."
     exit 1
     fi
+
     # Add non-root user to the vpnadmin group
     if [ "$original_user" != "root" ]; then
-    usermod -aG "$group_name" "$original_user"
-    echo "User '$original_user' has been added to the '$group_name' group."
+        if sudo usermod -aG "$group_name" "$original_user"; then
+            echo "User '$original_user' has been added to the '$group_name' group."
+        else
+            echo "Failed to add user '$original_user' to the '$group_name' group. Please check your permissions and try again."
+            exit 1
+        fi
+    else
+        echo "The root user should not be added to the '$group_name' group."
     fi
-
-    # Create wg0.conf if it doesn't exist
-    create_wg0_conf
 
     # Ensure necessary directories exist
     mkdir -p "${CLIENTS_DIR}"
@@ -133,18 +149,34 @@ initialize_environment() {
     chmod -R 770 "${WG_DIR}"
     echo "Permissions of '${WG_DIR}' and its subdirectories have been set to '770' (rwxrwx---)."
 
-    # Check if qrencode is installed, if not install it
+    # Set the setgid bit on the directory
+    find "${WG_DIR}" -type d -exec chmod g+s {} +
+    echo "The setgid bit has been set on '${WG_DIR}' and its subdirectories."
+
+    # Create wg0.conf if it doesn't exist
+    create_wg0_conf
+
+    # Check if qrencode is installed, if not, install it
     if ! command -v qrencode &> /dev/null; then
         echo "qrencode is not installed. Installing..."
-        apt-get update
-        apt-get install -y qrencode
-        echo "qrencode has been installed."
+
+        # Update package list and check for success
+        if sudo apt-get update -y > /dev/null 2>&1; then
+            # Try installing qrencode
+            if sudo apt-get install -y qrencode > /dev/null 2>&1; then
+                echo "qrencode has been installed."
+            else
+                echo "Error installing qrencode. Please check your package manager and try again."
+                exit 1
+            fi
+        else
+            echo "Error updating package list. Please check your internet connection or package sources."
+            exit 1
+        fi
     else
         echo "qrencode is already installed."
     fi
-
 }
-
 
 get_next_ip() {
     # Ensure SERVER_CONFIG exist.
@@ -192,7 +224,7 @@ qrcode() {
         echo "Error: qrencode is not installed."
         return 1
     fi
-    echo "${client_config} QR code:" 
+    echo "${client_config} QR code:"
     qrencode -t ansiutf8 < "${client_config}"
 }
 
@@ -235,8 +267,9 @@ EOL
     fi
 
     # Set correct permissions for the client configuration file
-    chown root:vpnadmin "${client_config}" || { echo "Error setting file ownwer and group permissions"; return 1; }
-    chmod -R 770 "${client_config}" || { echo "Error setting file file permission"; return 1; }
+    #chown root:vpnadmin "${client_config}" || { echo "Error setting file ownwer and group permissions"; return 1; }
+    #chmod -R 770 "${client_config}" || { echo "Error setting file file permission"; return 1; }
+
     # Add client to server configuration with a comment
     echo -e "\n# ${client_name}\n[Peer]\nPublicKey = ${client_public_key}\nAllowedIPs = ${client_address}" | tee -a "${SERVER_CONFIG}" > /dev/null || { echo "Error updating server configuration"; return 1; }
 
@@ -245,7 +278,7 @@ EOL
 
     # Apply new configuration
     wg set ${WG_INTERFACE} peer ${client_public_key} allowed-ips ${client_address} || { echo "Error applying configuration"; return 1; }
-
+    wg-quick up wg0
     # Checking for qrencode installation
     type qrencode >/dev/null 2>&1 || { echo "Error: qrencode is not installed."; return 1; }
 
@@ -265,7 +298,6 @@ delete_client() {
     fi
 
     local client_public_key=$(grep PublicKey "${client_config}" | cut -d " " -f 3)
-
     # Remove client from server configuration using the updated comment marker
     sed -i "/# ${client_name}/,/^\s*$/d" "${SERVER_CONFIG}" || { echo "Error updating server configuration"; exit 1; }
 
@@ -325,7 +357,6 @@ allow_client() {
         echo "Error: Client address not found for ${client_name}."
         return 1
     fi
-
 
     # Check if the rule already exists
     if grep -q "iptables -A FORWARD -i wg0 -s ${CLIENT_IP} -d ${escaped_local_network} -j ACCEPT;" "${SERVER_CONFIG}"; then
@@ -392,13 +423,9 @@ validate_client_name "$CLIENT_NAME"
 case "$COMMAND" in
     add)
         initialize_environment
-        check_permissions "$SERVER_CONFIG"
-        check_permissions "$CLIENTS_DIR"
         generate_client "$CLIENT_NAME"
         ;;
     delete)
-        check_permissions "$SERVER_CONFIG"
-        check_permissions "$CLIENTS_DIR"
         deny_client "$CLIENT_NAME"
         delete_client "$CLIENT_NAME"
         ;;
