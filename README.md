@@ -40,6 +40,20 @@ Before running the script, ensure you have completed the following steps:
    ```bash
    sudo ./wgvpn.sh
    ```
+4. **To uninstall**
+   ### 6. Uninstall
+
+  ```bash
+  wget  https://raw.githubusercontent.com/linsnotes/wireguard-vpn-server-script/main/uninstall-wgvpn.sh
+  ```
+
+  ```bash
+  chmod +x wgvpn.sh
+  ```
+
+  ```bash
+  sudo ./uninstall-wgvpn.sh
+  ```
 
 ## Usage
 
@@ -84,6 +98,7 @@ To deny a client access to the network, use the following command:
 ```bash
 sudo ./wgvpn deny <client_name>
 ```
+
 
 ## Example
 
