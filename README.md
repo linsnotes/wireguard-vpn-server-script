@@ -20,27 +20,34 @@ Before running the script, ensure you have completed the following steps:
 
 ## Download the script
 
-1. **Save the Script**
+1. **Download and edit the Script**
 
-   Save the script to a file, e.g., `configure-iptables.sh`.
+   Save the script to a file, e.g., `wgvpn.sh`.
 
    ```bash
    wget  https://raw.githubusercontent.com/linsnotes/wireguard-vpn-server-script/main/wgvpn.sh
-
    ```
 
-2. **Make the Script Executable**
+   Change the variables in the script
+   ```
+   nano wgvpn.sh
+   ```
+   - SERVER_IP=""
+   - NET_INTERFACE=""
+   - LOCAL_NETWORK=""
+
+3. **Make the Script Executable**
 
    ```bash
    chmod +x wgvpn.sh
    ```
 
-3. **Run the Script**
+4. **Run the Script**
 
    ```bash
    sudo ./wgvpn.sh
    ```
-4. **To uninstall**
+5. **To uninstall**
    ### 6. Uninstall
 
   ```bash
