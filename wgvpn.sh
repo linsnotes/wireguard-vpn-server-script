@@ -5,10 +5,10 @@ CLIENTS_DIR="${WG_DIR}/clients"
 SERVER_CONFIG="${WG_DIR}/wg0.conf"
 SERVER_PRIVATE_KEY=""
 SERVER_PUBLIC_KEY=""
-SERVER_IP="" # Change this to your server Domain name or DDNS address or server IP
+SERVER_IP=".com" # Change this to your server Domain name or DDNS address or server IP
 SERVER_PORT="51820" # Default is 51820. You may change to another port.
 WG_INTERFACE="wg0"
-NET_INTERFACE="" # Change this to your network interface
+NET_INTERFACE="eth" # Change this to your network interface
 LOCAL_NETWORK="192.168.1.0/24" # Change this to your local network
 escaped_local_network=$(echo "${LOCAL_NETWORK}" | sed 's/[&/\]/\\&/g')
 CLIENT_IP=""
@@ -146,7 +146,7 @@ initialize_environment() {
     chown -R root:"$group_name" "${WG_DIR}"
     echo "Ownership of '${WG_DIR}' and its subdirectories has been set to 'root:$group_name'."
 
-    chmod -R 770 "${WG_DIR}"
+    chmod -R 755 "${WG_DIR}"
     echo "Permissions of '${WG_DIR}' and its subdirectories have been set to '770' (rwxrwx---)."
 
     # Set the setgid bit on the directory
@@ -244,6 +244,9 @@ generate_client() {
     local client_public_key=$(echo "${client_private_key}" | wg pubkey) || { echo "Error generating public key"; return 1; }
     local client_address="$(get_next_ip)/32"
 
+    # Generate pre-shared key
+    local preshared_key=$(wg genpsk) || { echo "Error generating pre-shared key"; return 1; }
+
     # Create client configuration
     cat > "${client_config}" << EOL
 [Interface]
@@ -253,6 +256,7 @@ DNS = 1.1.1.1
 
 [Peer]
 PublicKey = ${SERVER_PUBLIC_KEY}
+PresharedKey = ${preshared_key}
 Endpoint = ${SERVER_IP}:${SERVER_PORT}
 AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25
@@ -263,7 +267,7 @@ EOL
         echo "Error creating client configuration file in '/etc/wireguard/clients'."
         return 1
     else
-        echo "Client configuration created at '${client_config}'"
+        echo "Checked that the client configuration file was created at '${client_config}'"
     fi
 
     # Set correct permissions for the client configuration file
@@ -271,21 +275,23 @@ EOL
     #chmod -R 770 "${client_config}" || { echo "Error setting file file permission"; return 1; }
 
     # Add client to server configuration with a comment
-    echo -e "\n# ${client_name}\n[Peer]\nPublicKey = ${client_public_key}\nAllowedIPs = ${client_address}" | tee -a "${SERVER_CONFIG}" > /dev/null || { echo "Error updating server configuration"; return 1; }
+    echo -e "\n# ${client_name}\n[Peer]\nPublicKey = ${client_public_key}\nPresharedKey = ${preshared_key}\nAllowedIPs = ${client_address}" | tee -a "${SERVER_CONFIG}" > /dev/null || { echo "Error adding client to server configuration"; return 1; }
+
 
     # Remove multiple empty lines and keep only one
     sed -i '/^$/N;/\n$/D' "${SERVER_CONFIG}"
-
+    echo "'${client_name}' successfully added to server configuration."
     # Apply new configuration
-    wg set ${WG_INTERFACE} peer ${client_public_key} allowed-ips ${client_address} || { echo "Error applying configuration"; return 1; }
+    # wg set ${WG_INTERFACE} peer ${client_public_key} allowed-ips ${client_address} preshared-key ${preshared_key} || { echo "Error applying new configuration"; return 1; }
     wg-quick up wg0
+    echo "wg is UP"
     # Checking for qrencode installation
     type qrencode >/dev/null 2>&1 || { echo "Error: qrencode is not installed."; return 1; }
 
     # Generate QR code
     qrencode -t ansiutf8 < "${client_config}"
 
-    echo "Client configuration created at: '${client_config}'"
+    echo "Scan the QR Code. Client configuration created at: '${client_config}'"
 }
 
 delete_client() {
@@ -324,7 +330,7 @@ get_client_address() {
     fi
 
     # Fetch client information
-    local client_info=$(sudo grep -A 3 -E "^# ${client_name}\b" "${SERVER_CONFIG}")
+    local client_info=$(sudo grep -A 4 -E "^# ${client_name}\b" "${SERVER_CONFIG}")
 
     local grep_exit_code=$?
     if [ ${grep_exit_code} -ne 0 ]; then
