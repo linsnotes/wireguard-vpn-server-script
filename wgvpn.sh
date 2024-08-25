@@ -5,13 +5,16 @@ CLIENTS_DIR="${WG_DIR}/clients"
 SERVER_CONFIG="${WG_DIR}/wg0.conf"
 SERVER_PRIVATE_KEY=""
 SERVER_PUBLIC_KEY=""
-SERVER_IP=".com" # Change this to your server Domain name or DDNS address or server IP
+SERVER_IP="ddns.com" # Change this to your server Domain name or DDNS address or server IP
 SERVER_PORT="51820" # Default is 51820. You may change to another port.
 WG_INTERFACE="wg0"
-NET_INTERFACE="eth" # Change this to your network interface
+NET_INTERFACE="eth0" # Change this to your network interface
 LOCAL_NETWORK="192.168.1.0/24" # Change this to your local network
 escaped_local_network=$(echo "${LOCAL_NETWORK}" | sed 's/[&/\]/\\&/g')
 CLIENT_IP=""
+DNS_SERVER="1.1.1.1"
+VPN_CLIENT_BASE_IP="10.0.0."
+
 
 # Ensure the script is run with root privileges
 if [ "$EUID" -ne 0 ]; then
@@ -65,7 +68,7 @@ create_wg0_conf() {
     if [ ! -f "${SERVER_CONFIG}" ] || [ ! -s "${SERVER_CONFIG}" ]; then
         cat > "${SERVER_CONFIG}" << EOL
 [Interface]
-Address = 10.0.0.1/24
+Address = ${VPN_CLIENT_BASE_IP}1/24
 ListenPort = ${SERVER_PORT}
 PrivateKey = ${SERVER_PRIVATE_KEY}
 PostUp = sysctl -w net.ipv4.ip_forward=1; iptables -A INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT; iptables -A FORWARD -i wg0 -d ${LOCAL_NETWORK} -j REJECT; iptables -A FORWARD -i wg0 -o ${NET_INTERFACE} -j ACCEPT; iptables -A FORWARD -i ${NET_INTERFACE} -o wg0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -A POSTROUTING -o ${NET_INTERFACE} -j MASQUERADE
@@ -191,7 +194,7 @@ get_next_ip() {
     used_ips=$(sudo grep 'AllowedIPs' "${SERVER_CONFIG}" | awk '{print $3}' | cut -d '/' -f 1 | sort -V)
 
     # Initialize starting IP address
-    local base_ip="10.0.0."
+    local base_ip=${VPN_CLIENT_BASE_IP}
     local start=2
     local end=254
 
@@ -252,7 +255,7 @@ generate_client() {
 [Interface]
 PrivateKey = ${client_private_key}
 Address = ${client_address}
-DNS = 1.1.1.1
+DNS = ${DNS_SERVER}
 
 [Peer]
 PublicKey = ${SERVER_PUBLIC_KEY}
@@ -284,6 +287,7 @@ EOL
     # Apply new configuration
     # wg set ${WG_INTERFACE} peer ${client_public_key} allowed-ips ${client_address} preshared-key ${preshared_key} || { echo "Error applying new configuration"; return 1; }
     wg-quick up wg0
+    systemctl restart wg-quick@wg0
     echo "wg is UP"
     # Checking for qrencode installation
     type qrencode >/dev/null 2>&1 || { echo "Error: qrencode is not installed."; return 1; }
