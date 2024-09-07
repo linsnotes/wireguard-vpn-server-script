@@ -90,7 +90,7 @@ initialize_environment() {
         # Update package list and check for success
         if sudo apt-get update -y > /dev/null 2>&1; then
         # Try installing WireGuard
-            if sudo apt-get install -y wireguard > /dev/null 2>&1; then
+            if apt-get install -y wireguard > /dev/null 2>&1; then
                 echo "WireGuard has been installed."
             else
                 echo "Error installing WireGuard. Please check your package manager and try again."
@@ -109,7 +109,7 @@ initialize_environment() {
 
     # Check if the group exists, and create it if it doesn't
     if ! getent group "$group_name" > /dev/null; then
-        if sudo groupadd "$group_name"; then
+        if groupadd "$group_name"; then
             echo "Group '$group_name' has been created."
         else
             echo "Failed to create group '$group_name'. Please check your permissions and try again."
@@ -131,7 +131,7 @@ initialize_environment() {
 
     # Add non-root user to the vpnadmin group
     if [ "$original_user" != "root" ]; then
-        if sudo usermod -aG "$group_name" "$original_user"; then
+        if usermod -aG "$group_name" "$original_user"; then
             echo "User '$original_user' has been added to the '$group_name' group."
         else
             echo "Failed to add user '$original_user' to the '$group_name' group. Please check your permissions and try again."
@@ -164,9 +164,9 @@ initialize_environment() {
         echo "qrencode is not installed. Installing..."
 
         # Update package list and check for success
-        if sudo apt-get update -y > /dev/null 2>&1; then
+        if apt-get update -y > /dev/null 2>&1; then
             # Try installing qrencode
-            if sudo apt-get install -y qrencode > /dev/null 2>&1; then
+            if apt-get install -y qrencode > /dev/null 2>&1; then
                 echo "qrencode has been installed."
             else
                 echo "Error installing qrencode. Please check your package manager and try again."
@@ -191,7 +191,7 @@ get_next_ip() {
 
     # Extract used IPs from the configuration file
     local used_ips
-    used_ips=$(sudo grep 'AllowedIPs' "${SERVER_CONFIG}" | awk '{print $3}' | cut -d '/' -f 1 | sort -V)
+    used_ips=$(grep 'AllowedIPs' "${SERVER_CONFIG}" | awk '{print $3}' | cut -d '/' -f 1 | sort -V)
 
     # Initialize starting IP address
     local base_ip=${VPN_CLIENT_BASE_IP}
@@ -334,7 +334,7 @@ get_client_address() {
     fi
 
     # Fetch client information
-    local client_info=$(sudo grep -A 4 -E "^# ${client_name}\b" "${SERVER_CONFIG}")
+    local client_info=$(grep -A 4 -E "^# ${client_name}\b" "${SERVER_CONFIG}")
 
     local grep_exit_code=$?
     if [ ${grep_exit_code} -ne 0 ]; then
