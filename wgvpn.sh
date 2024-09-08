@@ -12,9 +12,8 @@ NET_INTERFACE="eth0" # Change this to your network interface
 LOCAL_NETWORK="192.168.1.0/24" # Change this to your local network
 escaped_local_network=$(echo "${LOCAL_NETWORK}" | sed 's/[&/\]/\\&/g')
 CLIENT_IP=""
-DNS_SERVER="1.1.1.1"
-VPN_CLIENT_BASE_IP="10.0.0."
-
+DNS_SERVER="8.8.8.8,1.1.1.1" # Change to your own dns server if you have.
+VPN_CLIENT_BASE_IP="10.0.1." # Change to your preference
 
 # Ensure the script is run with root privileges
 if [ "$EUID" -ne 0 ]; then
@@ -88,7 +87,7 @@ initialize_environment() {
         echo "WireGuard is not installed. Installing..."
 
         # Update package list and check for success
-        if sudo apt-get update -y > /dev/null 2>&1; then
+        if apt-get update -y > /dev/null 2>&1; then
         # Try installing WireGuard
             if apt-get install -y wireguard > /dev/null 2>&1; then
                 echo "WireGuard has been installed."
@@ -191,7 +190,7 @@ get_next_ip() {
 
     # Extract used IPs from the configuration file
     local used_ips
-    used_ips=$(grep 'AllowedIPs' "${SERVER_CONFIG}" | awk '{print $3}' | cut -d '/' -f 1 | sort -V)
+    used_ips=$(sudo grep 'AllowedIPs' "${SERVER_CONFIG}" | awk '{print $3}' | cut -d '/' -f 1 | sort -V)
 
     # Initialize starting IP address
     local base_ip=${VPN_CLIENT_BASE_IP}
@@ -334,7 +333,7 @@ get_client_address() {
     fi
 
     # Fetch client information
-    local client_info=$(grep -A 4 -E "^# ${client_name}\b" "${SERVER_CONFIG}")
+    local client_info=$(sudo grep -A 4 -E "^# ${client_name}\b" "${SERVER_CONFIG}")
 
     local grep_exit_code=$?
     if [ ${grep_exit_code} -ne 0 ]; then
