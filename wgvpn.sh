@@ -5,15 +5,16 @@ CLIENTS_DIR="${WG_DIR}/clients"
 SERVER_CONFIG="${WG_DIR}/wg0.conf"
 SERVER_PRIVATE_KEY=""
 SERVER_PUBLIC_KEY=""
-SERVER_IP="ddns.com" # Change this to your server Domain name or DDNS address or server IP
+SERVER_IP="ddns.linsnode.com" # Change this to your server Domain name or DDNS address or server IP
 SERVER_PORT="51820" # Default is 51820. You may change to another port.
 WG_INTERFACE="wg0"
 NET_INTERFACE="eth0" # Change this to your network interface
 LOCAL_NETWORK="192.168.1.0/24" # Change this to your local network
 escaped_local_network=$(echo "${LOCAL_NETWORK}" | sed 's/[&/\]/\\&/g')
 CLIENT_IP=""
-DNS_SERVER="8.8.8.8,1.1.1.1" # Change to your own dns server if you have.
-VPN_CLIENT_BASE_IP="10.0.1." # Change to your preference
+DNS_SERVER="192.168.1.4,192.168.1.5" # if you have your own dns server, else put 8.8.8.8 or 1.1.1.1
+VPN_CLIENT_BASE_IP="10.0.0." #change this to your preference
+NAS_IP="192.168.1.90" #change this to your NAS IP
 
 # Ensure the script is run with root privileges
 if [ "$EUID" -ne 0 ]; then
@@ -416,6 +417,66 @@ deny_client() {
 }
 
 
+allow_client_nas() {
+    local client_name=$1
+    get_client_address "${client_name}"
+
+    if [ -z "${CLIENT_IP}" ]; then
+        echo "Error: Client address not found for ${client_name}."
+        return 1
+    fi
+
+    # Check if the rule already exists
+    if grep -q "iptables -A FORWARD -i wg0 -s ${CLIENT_IP} -d ${NAS_IP} -j ACCEPT;" "${SERVER_CONFIG}"; then
+        echo "Access to the NAS device is already ALLOWED for '${client_name}' with address ${CLIENT_IP}."
+        return 0
+    fi
+
+    # Bring down the WireGuard interface to remove current iptables rules.
+    wg-quick down wg0
+    echo "WireGuard Down"
+
+    # Edit the configuration file to add iptables rules to allow access to the NAS device
+    sed -i "s|iptables -A INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT;|& iptables -A FORWARD -i wg0 -s ${CLIENT_IP} -d ${NAS_IP} -j ACCEPT;|" "${SERVER_CONFIG}"
+    sed -i "s|iptables -D INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT;|& iptables -D FORWARD -i wg0 -s ${CLIENT_IP} -d ${NAS_IP} -j ACCEPT;|" "${SERVER_CONFIG}"
+
+    # Remove multiple empty lines and keep only one
+    sed -i '/^$/N;/\n$/D' "${SERVER_CONFIG}"
+
+    # Bring up the WireGuard interface to apply new iptables rules
+    wg-quick up wg0
+    echo "WireGuard Up"
+    echo "Access to the NAS device has been ALLOWED for '${client_name}' with address ${CLIENT_IP}"
+}
+
+deny_client_nas() {
+    local client_name=$1
+    get_client_address "${client_name}"
+
+    if [ -z "${CLIENT_IP}" ]; then
+        echo "Error: Client address not found for ${client_name}."
+        return 1
+    fi
+
+    # Bring down the WireGuard interface to remove current iptables rules.
+    wg-quick down wg0
+    echo "WireGuard Down"
+
+    # Remove specific iptables rules from the configuration file
+    sed -i "/iptables -A FORWARD -i wg0 -s ${CLIENT_IP} -d ${NAS_IP} -j ACCEPT;/d" "${SERVER_CONFIG}"
+    sed -i "/iptables -D FORWARD -i wg0 -s ${CLIENT_IP} -d ${NAS_IP} -j ACCEPT;/d" "${SERVER_CONFIG}"
+
+    # Remove multiple empty lines and keep only one
+    sed -i '/^$/N;/\n$/D' "${SERVER_CONFIG}"
+
+    # Bring up the WireGuard interface to apply changes
+    wg-quick up wg0
+    echo "WireGuard Up"
+    echo "Access to the NAS device has been BLOCKED for '${client_name}' with address ${CLIENT_IP}"
+}
+
+
+
 if [[ "$#" -ne 2 ]]; then
     echo "Usage: $0 {add|delete|list|local} <client_name>"
     echo "To add a new client: $0 add <client_name>"
@@ -454,6 +515,12 @@ case "$COMMAND" in
         ;;
     qr)
         qrcode "$CLIENT_NAME"
+        ;;
+    allownas)
+        allow_client_nas "$CLIENT_NAME"
+        ;;
+    denynas)
+        deny_client_nas "$CLIENT_NAME"
         ;;
     *)
         echo "Usage: $0 {add|delete|list|allow|deny|qr} <client_name>"
